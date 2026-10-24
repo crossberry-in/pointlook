@@ -45,7 +45,9 @@ jobs:
           CI: 1
 
       - name: Tune Gradle memory
-        run: echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> android/gradle.properties
+        run: |
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1024m" >> android/gradle.properties
+          echo "kotlin.daemon.jvmargs=-Xmx3g" >> android/gradle.properties
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
