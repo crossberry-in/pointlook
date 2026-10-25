@@ -117,15 +117,22 @@ jobs:
             python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>300 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>300 else '=> NOT-SCROLLED-BACK')" || echo "TOUCH-TEST analysis failed (screenshots still uploaded)"
 
             # ---- QUICK ACTIONS PILL TEST ---------------------------------
-            # Simulate the real gesture with raw motion events: press, hold
-            # still for 1s (>420ms long-press window), drag DOWN (pill should
-            # arm with refresh selected), screenshot, release (page reloads).
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent DOWN $((W/2)) $((H*50/100)); }
+            # Navigate to example.com (short page, blank below the fold) and
+            # press on the BLANK area: pressing on text would start the native
+            # text selection, which swallows the drag (by design - selection
+            # wins over the quick action). Long-press on blank ground arms the
+            # pill; drag DOWN, screenshot, release (refresh fires).
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input tap $((W/2)) $((H*8/100)); }
+            sleep 2
+            adb shell input text "example.com"
+            adb shell input keyevent 66
+            sleep 10
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent DOWN $((W/2)) $((H*78/100)); }
             sleep 1
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent MOVE $((W/2)) $((H*56/100)); adb shell input motionevent MOVE $((W/2)) $((H*62/100)); }
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent MOVE $((W/2)) $((H*84/100)); adb shell input motionevent MOVE $((W/2)) $((H*90/100)); }
             sleep 1
             adb exec-out screencap -p > qa-pill-armed.png
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent UP $((W/2)) $((H*62/100)); }
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent UP $((W/2)) $((H*90/100)); }
             sleep 6
             adb exec-out screencap -p > qa-after-release.png
 
