@@ -102,13 +102,11 @@ jobs:
             adb exec-out screencap -p > touch-C-after-swipe-back.png
             # NOTE: android-emulator-runner executes the script LINE BY LINE
             # (each line becomes its own `sh -c`), so no multi-line heredocs
-            # and no cross-line variables — keep this comparison on one line.
-            # The status-bar clock changes between shots, so crop the top 100px
-            # before pixel-diffing (ImageMagick is preinstalled on the runner).
-            convert touch-A-loaded.png -crop 1080x1780+0+100 +repage cropA.png
-            convert touch-B-after-swipe.png -crop 1080x1780+0+100 +repage cropB.png
-            convert touch-C-after-swipe-back.png -crop 1080x1780+0+100 +repage cropC.png
-            AB=$(compare -metric AE cropA.png cropB.png null: 2>&1 || true); BC=$(compare -metric AE cropB.png cropC.png null: 2>&1 || true); echo "TOUCH-TEST pixel-diff A-vs-B=$AB B-vs-C=$BC (>=50000 means the page scrolled, i.e. WebView touch works; ~0 means dead touch)"
+            # and no cross-line variables. The status-bar clock changes between
+            # shots, so we look at the diff bounding box: a scroll differs over
+            # most of the screen (height > 800px), a clock tick only in the top.
+            pip3 install --quiet pillow
+            python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>800 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>800 else '=> NOT-SCROLLED-BACK')"
 
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
