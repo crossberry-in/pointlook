@@ -78,15 +78,17 @@ jobs:
             adb exec-out screencap -p > shot-devtools.png
 
             # ---- WebView TOUCH TEST --------------------------------------
-            # Back to the browser start page, type a URL in the omnibox,
-            # wait for the page, then swipe up: if the WebView receives
-            # touches, the page scrolls and the two screenshots differ.
+            # IMPORTANT: the runner's default AVD is 320x640 (avdmanager
+            # default), NOT 1080x1920. All coordinates are computed from
+            # `wm size` (device-side layout is ~160dpi, so dp ~= px here).
+            # Each line recomputes W/H because android-emulator-runner runs
+            # the script LINE BY LINE (separate `sh -c`, no shared vars).
             adb shell am force-stop com.crossberry.pointlook
             sleep 2
             adb shell monkey -p com.crossberry.pointlook -c android.intent.category.LAUNCHER 1
             sleep 8
-            # tap the omnibox (top bar, centered)
-            adb shell input tap 540 130
+            # tap the omnibox (top bar, centered) using real screen size
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input tap $((W/2)) $((H*8/100)); }
             sleep 2
             adb shell input text "en.wikipedia.org/wiki/Android"
             adb shell input keyevent 66
@@ -97,35 +99,33 @@ jobs:
             adb shell dumpsys window windows | grep -iE "mCurrentFocus|mFocusedWindow" || true
             # 2) native view hierarchy: classes + bounds around the WebView
             adb shell uiautomator dump /sdcard/ui.xml || true
-            adb shell "cat /sdcard/ui.xml" | tr '>' '>\n' | grep -iE "webview|swiperefresh|scroll" | head -20 || true
-            # swipe up (drag page content upward = scroll down)
-            adb shell input swipe 540 1100 540 300 400
+            adb shell "cat /sdcard/ui.xml" | tr '>' '>\n' | grep -iE "webview|swiperefresh|scroll" | head -8 || true
+            # swipe up (drag page content upward = scroll down), on-screen coords
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input swipe $((W/2)) $((H*60/100)) $((W/2)) $((H*20/100)) 400; }
             sleep 2
             adb exec-out screencap -p > touch-B-after-swipe.png
             # second swipe back down
-            adb shell input swipe 540 400 540 1100 400
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input swipe $((W/2)) $((H*20/100)) $((W/2)) $((H*60/100)) 400; }
             sleep 2
             adb exec-out screencap -p > touch-C-after-swipe-back.png
             # NOTE: android-emulator-runner executes the script LINE BY LINE
             # (each line becomes its own `sh -c`), so no multi-line heredocs
             # and no cross-line variables. The status-bar clock changes between
             # shots, so we look at the diff bounding box: a scroll differs over
-            # most of the screen (height > 800px), a clock tick only in the top.
+            # most of the screen (height > 300px), a clock tick only in the top.
             pip3 install --quiet pillow || echo "pillow install failed - analysis will be skipped"
-            python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>800 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>800 else '=> NOT-SCROLLED-BACK')" || echo "TOUCH-TEST analysis failed (screenshots still uploaded)"
+            python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>300 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>300 else '=> NOT-SCROLLED-BACK')" || echo "TOUCH-TEST analysis failed (screenshots still uploaded)"
 
             # ---- QUICK ACTIONS PILL TEST ---------------------------------
             # Simulate the real gesture with raw motion events: press, hold
-            # still for 1s (>420ms long-press window), drag DOWN ~200px (pill
-            # should arm with refresh selected), screenshot, release (page
-            # should reload).
-            adb shell input motionevent DOWN 540 800
+            # still for 1s (>420ms long-press window), drag DOWN (pill should
+            # arm with refresh selected), screenshot, release (page reloads).
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent DOWN $((W/2)) $((H*50/100)); }
             sleep 1
-            adb shell input motionevent MOVE 540 900
-            adb shell input motionevent MOVE 540 1000
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent MOVE $((W/2)) $((H*56/100)); adb shell input motionevent MOVE $((W/2)) $((H*62/100)); }
             sleep 1
             adb exec-out screencap -p > qa-pill-armed.png
-            adb shell input motionevent UP 540 1000
+            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent UP $((W/2)) $((H*62/100)); }
             sleep 6
             adb exec-out screencap -p > qa-after-release.png
 
