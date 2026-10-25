@@ -124,6 +124,9 @@ jobs:
             # pill; drag DOWN, screenshot, release (refresh fires).
             adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input tap $((W/2)) $((H*8/100)); }
             sleep 2
+            # clear the pre-filled URL draft (MOVE_END then a DEL burst)
+            adb shell input keyevent 123
+            adb shell input keyevent 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67
             adb shell input text "example.com"
             adb shell input keyevent 66
             sleep 10
