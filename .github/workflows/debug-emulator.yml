@@ -1,0 +1,92 @@
+name: Debug Emulator (logcat + screenshots)
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'APK URL to install (empty = latest release asset)'
+        required: false
+        default: ''
+  push:
+    paths:
+      - '.github/workflows/debug-emulator.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Resolve APK URL (latest release asset by default)
+        id: apk
+        run: |
+          if [ -n "${{ github.event.inputs.apk_url }}" ]; then
+            URL="${{ github.event.inputs.apk_url }}"
+          else
+            URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'][0]['browser_download_url'])")
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Downloading: $URL"
+
+      - name: Download APK
+        run: |
+          curl -sL -o app.apk "${{ steps.apk.outputs.url }}"
+          ls -la app.apk
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls /dev/kvm
+
+      - name: Run emulator, install APK, capture evidence
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -x
+            adb install -t -r -g app.apk
+
+            adb logcat -c
+            # Cold launch the app
+            adb shell monkey -p com.crossberry.pointlook -c android.intent.category.LAUNCHER 1
+            sleep 8
+            adb exec-out screencap -p > shot-08s.png
+            sleep 10
+            adb exec-out screencap -p > shot-18s.png
+            sleep 15
+            adb exec-out screencap -p > shot-33s.png
+
+            # Is the process alive? What activities are up?
+            adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
+            adb shell dumpsys activity activities | grep -i -A2 "topResumedActivity\|mResumedActivity" || true
+
+            adb logcat -d > logcat-full.txt
+            adb logcat -d -b crash > logcat-crash.txt || true
+
+            grep -a -E "ReactNativeJS|AndroidRuntime|FATAL|Process: com.crossberry|com.crossberry.pointlook|ExpoModules|expo|Hermes|Runtime" logcat-full.txt > logcat-relevant.txt || true
+
+            echo "=== relevant logcat (first 200 lines) ==="
+            head -200 logcat-relevant.txt || true
+            echo "=== crash buffer ==="
+            head -100 logcat-crash.txt || true
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-evidence
+          path: |
+            shot-*.png
+            logcat-*.txt
+          if-no-files-found: warn
+          retention-days: 14
