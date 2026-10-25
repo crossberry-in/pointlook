@@ -2,7 +2,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { Component, type ReactNode } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { SettingsProvider } from '@/hooks/useSettings';
 
@@ -37,25 +36,22 @@ class RootErrorBoundary extends Component<
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={styles.flex}>
-      <SettingsProvider>
-        <RootErrorBoundary>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="settings" />
-            <Stack.Screen name="downloads" />
-            <Stack.Screen name="devtools" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </RootErrorBoundary>
-      </SettingsProvider>
-    </GestureHandlerRootView>
+    <SettingsProvider>
+      <RootErrorBoundary>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="downloads" />
+          <Stack.Screen name="devtools" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="auto" />
+      </RootErrorBoundary>
+    </SettingsProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   errorRoot: {
     flex: 1,
     backgroundColor: '#202124',

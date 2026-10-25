@@ -24,11 +24,12 @@ export const QUICK_ACTIONS_JS = `;(function(){
   window.__pointlookQA = true;
   var ARM = 26, SELECT = 56, LP = 420;
   var st = null;
-  function post(type, zone, dy) {
+  function post(type, zone, dy, extra) {
     try {
       var m = { __qa: type };
-      if (zone !== undefined) m.zone = zone;
-      if (dy !== undefined) m.dy = Math.round(dy);
+      if (zone !== undefined && zone !== null) m.zone = zone;
+      if (dy !== undefined && dy !== null) m.dy = Math.round(dy);
+      if (extra) for (var k in extra) m[k] = extra[k];
       window.ReactNativeWebView.postMessage(JSON.stringify(m));
     } catch (e) {}
   }
@@ -74,6 +75,26 @@ export const QUICK_ACTIONS_JS = `;(function(){
   document.addEventListener('touchmove', onMove, { capture: true, passive: true });
   document.addEventListener('touchend', onEnd, { capture: true, passive: true });
   document.addEventListener('touchcancel', onEnd, { capture: true, passive: true });
+  post('ready');
+  // One-shot diagnostics: prove injection ran and report page scrollability.
+  setTimeout(function () {
+    try {
+      var d = document.documentElement;
+      post('metrics', null, 0, {
+        sh: d ? d.scrollHeight : -1,
+        ih: window.innerHeight,
+        y: window.scrollY || window.pageYOffset || 0,
+      });
+      if ((window.scrollY || 0) < 50 && d && d.scrollHeight > window.innerHeight) {
+        window.scrollTo(0, 800);
+        setTimeout(function () {
+          post('scrollprobe', null, window.scrollY || 0);
+        }, 800);
+      }
+    } catch (e) {
+      post('metricsfail');
+    }
+  }, 6000);
 })();true;`;
 
 export type QuickAction = 'back' | 'refresh' | 'forward';
@@ -93,7 +114,14 @@ interface QaEndMessage {
   zone?: QuickActionZone;
   dy?: number;
 }
-type QaMessage = QaArmMessage | QaSelectMessage | QaEndMessage;
+interface QaDiagnosticsMessage {
+  __qa: 'ready' | 'metrics' | 'scrollprobe' | 'metricsfail';
+  sh?: number;
+  ih?: number;
+  y?: number;
+  dy?: number;
+}
+type QaMessage = QaArmMessage | QaSelectMessage | QaEndMessage | QaDiagnosticsMessage;
 
 /**
  * Cheap router for WebView onMessage. Returns true when the payload was a
@@ -108,6 +136,15 @@ export function parseQuickActionMessage(data: string): QaMessage | null {
     if (type === 'arm') return { __qa: 'arm' };
     if (type === 'select') return { __qa: 'select', zone: parsed.zone ?? null };
     if (type === 'end') return { __qa: 'end', zone: parsed.zone ?? null, dy: parsed.dy ?? 0 };
+    if (type === 'ready' || type === 'metrics' || type === 'scrollprobe' || type === 'metricsfail') {
+      return {
+        __qa: type,
+        sh: parsed.sh,
+        ih: parsed.ih,
+        y: parsed.y,
+        dy: parsed.dy,
+      };
+    }
   } catch {
     // malformed payload — treat as consumed to avoid dumping it into the console
   }

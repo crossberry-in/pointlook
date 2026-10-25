@@ -92,6 +92,12 @@ jobs:
             adb shell input keyevent 66
             sleep 14
             adb exec-out screencap -p > touch-A-loaded.png
+            # ---- GROUND-TRUTH DIAGNOSTICS ---------------------------------
+            # 1) focused window (do injections land in the app at all?)
+            adb shell dumpsys window windows | grep -iE "mCurrentFocus|mFocusedWindow" || true
+            # 2) native view hierarchy: classes + bounds around the WebView
+            adb shell uiautomator dump /sdcard/ui.xml || true
+            adb shell "cat /sdcard/ui.xml" | tr '>' '>\n' | grep -iE "webview|swiperefresh|scroll" | head -20 || true
             # swipe up (drag page content upward = scroll down)
             adb shell input swipe 540 1100 540 300 400
             sleep 2

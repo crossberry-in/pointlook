@@ -74,6 +74,8 @@ export function useQuickActions({ canGoBack, canGoForward, onAction }: QuickActi
   const handleMessage = useCallback((data: string): boolean => {
     const msg = parseQuickActionMessage(data);
     if (!msg) return false;
+    // Logcat visibility for CI diagnostics (grep ReactNativeJS)
+    console.log('[pointlook][qa]', JSON.stringify(msg));
     switch (msg.__qa) {
       case 'arm': {
         if (!armedRef.current) {

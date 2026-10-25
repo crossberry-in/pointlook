@@ -219,7 +219,7 @@ export default function SettingsScreen() {
                 {ABOUT.app} for Android
               </Text>
               <Text style={[styles.rowSub, { color: colors.secondaryText }]}>
-                Version 1.2.2 (versionCode 6)
+                Version 1.2.3 (versionCode 7)
               </Text>
             </View>
           </View>

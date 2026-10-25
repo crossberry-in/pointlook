@@ -86,7 +86,6 @@ export const WebPane = memo(function WebPane({
             javaScriptEnabled
             domStorageEnabled
             allowsBackForwardNavigationGestures
-            pullToRefreshEnabled
             allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false}
             setSupportMultipleWindows={false}
