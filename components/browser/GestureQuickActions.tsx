@@ -1,19 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 
 import { BrowserTheme } from '@/constants/BrowserColors';
+import {
+  parseQuickActionMessage,
+  type QuickAction,
+  type QuickActionZone,
+} from '@/lib/quickActions';
 
-export type QuickAction = 'back' | 'refresh' | 'forward';
+export type { QuickAction };
 
 type Selection = QuickAction | null;
-
-const LONG_PRESS_MS = 420; // finger must rest this long before a drag can arm the pill
-const ARM_DISTANCE = 26; // px of downward drag needed to reveal the pill
-const SELECT_DISTANCE = 56; // px of horizontal drag needed to pick a side icon
-const EARLY_MOVE_PX = 12; // moving this far before the long press = ordinary scroll
 
 interface QuickActionsOptions {
   canGoBack: boolean;
@@ -21,37 +20,32 @@ interface QuickActionsOptions {
   onAction: (action: QuickAction) => void;
 }
 
+export interface QuickActionsController {
+  armed: boolean;
+  selection: Selection;
+  anim: Animated.Value;
+  pulse: Animated.Value;
+  /** Feed raw WebView onMessage payloads; returns true when consumed. */
+  handleMessage: (data: string) => boolean;
+}
+
 /**
- * Chrome-style quick actions: long-press on the page, drag DOWN to reveal a
- * floating pill with [back] [refresh] [forward], drag toward an icon, release
- * to activate it.
- *
- * IMPORTANT: the detector returned here must WRAP the WebView
- * (`<GestureDetector gesture={gesture}><WebView/></GestureDetector>`), never
- * sit on top of it as a sibling overlay. A full-screen view over the WebView
- * swallows every touch and the page becomes untouchable. Wrapping the WebView
- * keeps the touch stream flowing into the page until the gesture actually
- * activates:
- *
- *  - any movement >12px before the long-press window elapses FAILS the
- *    handler, so normal scrolling, swiping and flings are never intercepted;
- *  - taps and plain long-presses never activate it either, so links, buttons
- *    and text selection all keep working;
- *  - only rest-then-drag-down activates, which (and only then) cancels the
- *    touch stream to the WebView while the pill is up.
+ * State side of the page-driven quick actions gesture (see lib/quickActions.ts
+ * for the injected page observer). The page reports raw zones; validity
+ * (canGoBack / canGoForward) is enforced here, on the RN side.
  */
-export function useQuickActionsGesture({ canGoBack, canGoForward, onAction }: QuickActionsOptions) {
+export function useQuickActions({ canGoBack, canGoForward, onAction }: QuickActionsOptions): QuickActionsController {
   const [armed, setArmed] = useState(false);
   const [selection, setSelection] = useState<Selection>(null);
 
   const armedRef = useRef(false);
   const selectionRef = useRef<Selection>(null);
-  const downAtRef = useRef(0);
-  const firstMoveAtRef = useRef<number | null>(null);
-  const startXRef = useRef(0);
-  const startYRef = useRef(0);
-  const dxRef = useRef(0);
-  const dyRef = useRef(0);
+  const canGoBackRef = useRef(canGoBack);
+  const canGoForwardRef = useRef(canGoForward);
+  const onActionRef = useRef(onAction);
+  canGoBackRef.current = canGoBack;
+  canGoForwardRef.current = canGoForward;
+  onActionRef.current = onAction;
 
   const anim = useRef(new Animated.Value(0)).current; // 0 hidden, 1 shown
   const pulse = useRef(new Animated.Value(1)).current;
@@ -77,71 +71,43 @@ export function useQuickActionsGesture({ canGoBack, canGoForward, onAction }: Qu
     if (s) Haptics.selectionAsync().catch(() => {});
   }, []);
 
-  const gesture = Gesture.Pan()
-    .manualActivation(true) // we decide when to take over from the WebView
-    .maxPointers(1)
-    .shouldCancelWhenOutside(false)
-    .runOnJS(true) // plain JS callbacks (RN Animated + React state, no worklets)
-    .onTouchesDown((e) => {
-      if (armedRef.current) return; // keep the original anchor while the pill is up
-      const t = e.allTouches[0];
-      startXRef.current = t?.absoluteX ?? 0;
-      startYRef.current = t?.absoluteY ?? 0;
-      downAtRef.current = Date.now();
-      firstMoveAtRef.current = null;
-      dxRef.current = 0;
-      dyRef.current = 0;
-    })
-    .onTouchesMove((e, stateManager) => {
-      const t = e.allTouches[0];
-      if (!t) return;
-      const dx = t.absoluteX - startXRef.current;
-      const dy = t.absoluteY - startYRef.current;
-      dxRef.current = dx;
-      dyRef.current = dy;
-
-      if (!armedRef.current) {
-        if (firstMoveAtRef.current === null && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-          firstMoveAtRef.current = Date.now();
-        }
-        // "rested" = the finger stayed still for the whole long-press window,
-        // i.e. this really is a long-press, not a (possibly slow) scroll.
-        const rested =
-          firstMoveAtRef.current === null ||
-          firstMoveAtRef.current - downAtRef.current >= LONG_PRESS_MS;
-        if (!rested && (Math.abs(dx) > EARLY_MOVE_PX || Math.abs(dy) > EARLY_MOVE_PX)) {
-          stateManager.fail(); // ordinary scroll/swipe: hand the stream back to the WebView
-          return;
-        }
-        if (rested && dy > ARM_DISTANCE && Math.abs(dx) < dy * 1.4) {
+  const handleMessage = useCallback((data: string): boolean => {
+    const msg = parseQuickActionMessage(data);
+    if (!msg) return false;
+    switch (msg.__qa) {
+      case 'arm': {
+        if (!armedRef.current) {
           armedRef.current = true;
-          select(null);
+          selectionRef.current = null;
+          setSelection(null);
           setArmed(true);
-          stateManager.activate(); // only now the WebView receives a touch cancel
         }
-        return;
+        break;
       }
-
-      if (dy < 8) {
-        select(null); // dragged back up: deselect
-        return;
+      case 'select': {
+        const zone: QuickActionZone = msg.zone;
+        const valid =
+          zone === 'refresh' ||
+          (zone === 'back' && canGoBackRef.current) ||
+          (zone === 'forward' && canGoForwardRef.current);
+        select(valid ? zone : null);
+        break;
       }
-      if (dx < -SELECT_DISTANCE) select(canGoBack ? 'back' : null);
-      else if (dx > SELECT_DISTANCE) select(canGoForward ? 'forward' : null);
-      else select('refresh');
-    })
-    .onFinalize(() => {
-      const wasArmed = armedRef.current;
-      const sel = selectionRef.current;
-      const dy = dyRef.current;
-      armedRef.current = false;
-      if (wasArmed) {
+      case 'end': {
+        const wasArmed = armedRef.current;
+        const sel = selectionRef.current;
+        armedRef.current = false;
         setArmed(false);
-        if (sel && dy > 8) onAction(sel);
+        if (wasArmed && sel && (msg.dy ?? 0) > 8) {
+          onActionRef.current(sel);
+        }
+        break;
       }
-    });
+    }
+    return true;
+  }, [select]);
 
-  return { gesture, armed, selection, anim, pulse };
+  return { armed, selection, anim, pulse, handleMessage };
 }
 
 interface QuickActionsOverlayProps {

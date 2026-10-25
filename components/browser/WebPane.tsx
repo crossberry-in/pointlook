@@ -2,16 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { memo } from 'react';
-import { GestureDetector } from 'react-native-gesture-handler';
 
 import { BrowserTheme } from '@/constants/BrowserColors';
 import { Tab } from '@/lib/browser';
 import { StartPage } from '@/components/browser/StartPage';
 import {
   QuickActionsOverlay,
-  useQuickActionsGesture,
+  useQuickActions,
   type QuickAction,
 } from './GestureQuickActions';
+import { QUICK_ACTIONS_JS } from '@/lib/quickActions';
 import { deliverBridgeMessage, pushConsole } from '@/lib/pageBridge';
 
 interface WebPaneProps {
@@ -60,9 +60,10 @@ export const WebPane = memo(function WebPane({
   const canGoBack = !!tab.nav.canGoBack && tab.url !== null;
   const canGoForward = !!tab.nav.canGoForward;
 
-  // Quick actions gesture WRAPS the WebView (never an overlay on top of it,
-  // which would swallow every touch and make the page untouchable).
-  const qa = useQuickActionsGesture({ canGoBack, canGoForward, onAction: onQuickAction });
+  // Quick actions are detected INSIDE the page by a passive injected
+  // observer (lib/quickActions.ts) — never by intercepting native touches,
+  // which would make the WebView untouchable.
+  const qa = useQuickActions({ canGoBack, canGoForward, onAction: onQuickAction });
 
   return (
     <View style={[styles.pane, active ? styles.active : styles.hidden]}>
@@ -76,7 +77,6 @@ export const WebPane = memo(function WebPane({
         />
       ) : (
         <>
-          <GestureDetector gesture={qa.gesture}>
           <WebView
             ref={(instance) => setRef(tab.id, instance)}
             source={{ uri: tab.url ?? 'about:blank' }}
@@ -120,12 +120,15 @@ export const WebPane = memo(function WebPane({
               pushConsole(n.level, `[${n.lineNumber ?? '?'}] ${n.message}`);
             }}
             onMessage={(e) => {
-              if (!deliverBridgeMessage(e.nativeEvent.data)) {
-                pushConsole('log', e.nativeEvent.data.slice(0, 2000));
+              const data: string = e.nativeEvent.data ?? '';
+              if (qa.handleMessage(data)) return;
+              if (!deliverBridgeMessage(data)) {
+                pushConsole('log', data.slice(0, 2000));
               }
             }}
+            // Passive in-page observer for the long-press quick actions.
+            injectedJavaScript={QUICK_ACTIONS_JS}
           />
-          </GestureDetector>
           {active ? (
             <QuickActionsOverlay
               colors={colors}

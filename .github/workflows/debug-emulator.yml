@@ -105,8 +105,23 @@ jobs:
             # and no cross-line variables. The status-bar clock changes between
             # shots, so we look at the diff bounding box: a scroll differs over
             # most of the screen (height > 800px), a clock tick only in the top.
-            pip3 install --quiet pillow
-            python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>800 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>800 else '=> NOT-SCROLLED-BACK')"
+            pip3 install --quiet pillow || echo "pillow install failed - analysis will be skipped"
+            python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>800 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>800 else '=> NOT-SCROLLED-BACK')" || echo "TOUCH-TEST analysis failed (screenshots still uploaded)"
+
+            # ---- QUICK ACTIONS PILL TEST ---------------------------------
+            # Simulate the real gesture with raw motion events: press, hold
+            # still for 1s (>420ms long-press window), drag DOWN ~200px (pill
+            # should arm with refresh selected), screenshot, release (page
+            # should reload).
+            adb shell input motionevent DOWN 540 800
+            sleep 1
+            adb shell input motionevent MOVE 540 900
+            adb shell input motionevent MOVE 540 1000
+            sleep 1
+            adb exec-out screencap -p > qa-pill-armed.png
+            adb shell input motionevent UP 540 1000
+            sleep 6
+            adb exec-out screencap -p > qa-after-release.png
 
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
@@ -130,6 +145,7 @@ jobs:
           path: |
             shot-*.png
             touch-*.png
+            qa-*.png
             logcat-*.txt
           if-no-files-found: warn
           retention-days: 14
