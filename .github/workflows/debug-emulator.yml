@@ -103,7 +103,12 @@ jobs:
             # NOTE: android-emulator-runner executes the script LINE BY LINE
             # (each line becomes its own `sh -c`), so no multi-line heredocs
             # and no cross-line variables — keep this comparison on one line.
-            cmp -s touch-A-loaded.png touch-B-after-swipe.png && echo "TOUCH-TEST: A-vs-B IDENTICAL (touch broken?)" || echo "TOUCH-TEST: A-vs-B DIFFER (page scrolled - touch works)"; cmp -s touch-B-after-swipe.png touch-C-after-swipe-back.png && echo "TOUCH-TEST: B-vs-C IDENTICAL (no scroll back)" || echo "TOUCH-TEST: B-vs-C DIFFER (scrolled back - touch works)"; ls -la touch-*.png
+            # The status-bar clock changes between shots, so crop the top 100px
+            # before pixel-diffing (ImageMagick is preinstalled on the runner).
+            convert touch-A-loaded.png -crop 1080x1780+0+100 +repage cropA.png
+            convert touch-B-after-swipe.png -crop 1080x1780+0+100 +repage cropB.png
+            convert touch-C-after-swipe-back.png -crop 1080x1780+0+100 +repage cropC.png
+            AB=$(compare -metric AE cropA.png cropB.png null: 2>&1 || true); BC=$(compare -metric AE cropB.png cropC.png null: 2>&1 || true); echo "TOUCH-TEST pixel-diff A-vs-B=$AB B-vs-C=$BC (>=50000 means the page scrolled, i.e. WebView touch works; ~0 means dead touch)"
 
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
