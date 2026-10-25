@@ -10,11 +10,16 @@ import {
 import { useState } from 'react';
 
 import { avatarColorFor, BrowserTheme } from '@/constants/BrowserColors';
-import { QUICK_LINKS, resolveInput } from '@/lib/browser';
+import { ABOUT, QUICK_LINKS, resolveInput } from '@/lib/browser';
 
 interface StartPageProps {
   colors: BrowserTheme;
   onOpen: (url: string) => void;
+  /** Name of the active search engine, shown in the placeholder. */
+  engineName?: string;
+  /** Fully-resolved search template (built from settings). */
+  searchTemplate: string;
+  incognito?: boolean;
 }
 
 const WORDMARK = 'pointlook';
@@ -23,11 +28,11 @@ const WORDMARK_COLORS = ['#4285F4', '#EA4335', '#FBBC05', '#4285F4', '#34A853', 
 /**
  * Chrome-like new tab page: wordmark, search pill, and a shortcuts grid.
  */
-export function StartPage({ colors, onOpen }: StartPageProps) {
+export function StartPage({ colors, onOpen, engineName, searchTemplate, incognito }: StartPageProps) {
   const [query, setQuery] = useState('');
 
   const submit = () => {
-    const url = resolveInput(query);
+    const url = resolveInput(query, searchTemplate);
     if (url) onOpen(url);
   };
 
@@ -44,6 +49,15 @@ export function StartPage({ colors, onOpen }: StartPageProps) {
         ))}
       </View>
 
+      {incognito ? (
+        <View style={[styles.incognitoBadge, { backgroundColor: colors.pill, borderColor: colors.accent }]}>
+          <Ionicons name="eye-off-outline" size={14} color={colors.accent} />
+          <Text style={[styles.incognitoText, { color: colors.accent }]}>
+            You&apos;re browsing privately
+          </Text>
+        </View>
+      ) : null}
+
       <View style={[styles.searchPill, { backgroundColor: colors.pill }]}>
         <Ionicons name="search" size={20} color={colors.secondaryText} />
         <TextInput
@@ -51,7 +65,7 @@ export function StartPage({ colors, onOpen }: StartPageProps) {
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={submit}
-          placeholder="Search Google or type a URL"
+          placeholder={`Search ${engineName ?? 'Google'} or type a URL`}
           placeholderTextColor={colors.secondaryText}
           autoCapitalize="none"
           autoCorrect={false}
@@ -88,7 +102,10 @@ export function StartPage({ colors, onOpen }: StartPageProps) {
       </View>
 
       <Text style={[styles.footer, { color: colors.secondaryText }]}>
-        pointlook · built with Expo
+        {ABOUT.app} · {ABOUT.tagline}
+      </Text>
+      <Text style={[styles.footerMade, { color: colors.secondaryText }]}>
+        Made in {ABOUT.maker} · {ABOUT.website.replace('https://', '')}
       </Text>
     </ScrollView>
   );
@@ -168,5 +185,23 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 44,
     fontSize: 12,
+  },
+  footerMade: {
+    marginTop: 6,
+    fontSize: 11,
+  },
+  incognitoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 16,
+  },
+  incognitoText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

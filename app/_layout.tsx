@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { Component, type ReactNode } from 'react';
 
+import { SettingsProvider } from '@/hooks/useSettings';
+
 /**
  * Catches render errors that would otherwise leave a completely blank window
  * in release builds (no redboxes there). Shows the actual error text instead.
@@ -34,13 +36,18 @@ class RootErrorBoundary extends Component<
 
 export default function RootLayout() {
   return (
-    <RootErrorBoundary>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </RootErrorBoundary>
+    <SettingsProvider>
+      <RootErrorBoundary>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="downloads" />
+          <Stack.Screen name="devtools" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="auto" />
+      </RootErrorBoundary>
+    </SettingsProvider>
   );
 }
 

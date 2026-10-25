@@ -23,6 +23,8 @@ interface OmniboxProps {
   editing: boolean;
   draft: string;
   history: HistoryEntry[];
+  /** Name of the active search engine (for the placeholder + suggestions). */
+  engineName?: string;
   onChangeDraft: (text: string) => void;
   onStartEditing: () => void;
   onSubmit: (text: string) => void;
@@ -48,19 +50,21 @@ export const Omnibox = memo(function Omnibox({
   editing,
   draft,
   history,
+  engineName,
   onChangeDraft,
   onStartEditing,
   onSubmit,
   onReloadOrStop,
 }: OmniboxProps) {
   const inputRef = useRef<TextInput>(null);
+  const placeholder = `Search ${engineName ?? 'Google'} or type a URL`;
 
   const commit = (text: string) => {
     onSubmit(text);
     inputRef.current?.blur();
   };
 
-  const suggestions = buildSuggestions(draft, history);
+  const suggestions = buildSuggestions(draft, history, engineName);
 
   return (
     <View style={styles.wrapper}>
@@ -81,7 +85,7 @@ export const Omnibox = memo(function Omnibox({
               style={[styles.input, { color: colors.text }]}
               value={draft}
               onChangeText={onChangeDraft}
-              placeholder="Search Google or type a URL"
+              placeholder={placeholder}
               placeholderTextColor={colors.secondaryText}
               autoCapitalize="none"
               autoCorrect={false}
@@ -114,7 +118,7 @@ export const Omnibox = memo(function Omnibox({
             <Text
               style={[styles.urlText, { color: url ? colors.text : colors.secondaryText }]}
               numberOfLines={1}>
-              {url ? displayUrl(url) : 'Search Google or type a URL'}
+              {url ? displayUrl(url) : placeholder}
             </Text>
           </TouchableOpacity>
         )}
@@ -156,7 +160,7 @@ export const Omnibox = memo(function Omnibox({
   );
 });
 
-function buildSuggestions(draft: string, history: HistoryEntry[]): Suggestion[] {
+function buildSuggestions(draft: string, history: HistoryEntry[], engineName?: string): Suggestion[] {
   const q = draft.trim();
   if (!q) return [];
   const out: Suggestion[] = [];
@@ -165,7 +169,7 @@ function buildSuggestions(draft: string, history: HistoryEntry[]): Suggestion[] 
     key: 'primary',
     icon: isSearch ? 'search' : 'globe-outline',
     title: q,
-    sub: isSearch ? 'Google Search' : 'Visit site',
+    sub: isSearch ? `${engineName ?? 'Google'} Search` : 'Visit site',
     value: q,
   });
   const lq = q.toLowerCase();

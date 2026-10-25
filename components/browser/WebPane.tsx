@@ -1,21 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { memo } from 'react';
 
 import { BrowserTheme } from '@/constants/BrowserColors';
-import { DESKTOP_USER_AGENT, Tab } from '@/lib/browser';
+import { Tab } from '@/lib/browser';
 import { StartPage } from '@/components/browser/StartPage';
+import { GestureQuickActions, type QuickAction } from './GestureQuickActions';
+import { deliverBridgeMessage, pushConsole } from '@/lib/pageBridge';
 
 interface WebPaneProps {
   colors: BrowserTheme;
   tab: Tab;
   active: boolean;
+  /** Resolved user agent for this tab (undefined = WebView default). */
+  userAgent?: string;
+  /** Search engine name + template for the start page. */
+  engineName?: string;
+  searchTemplate: string;
+  incognito?: boolean;
   setRef: (tabId: string, instance: WebView | null) => void;
   onNavState: (tabId: string, nav: { url: string; title: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }) => void;
   onProgress: (tabId: string, progress: number) => void;
   onError: (tabId: string, description: string) => void;
   onRetry: (tabId: string) => void;
   onOpenFromStart: (tabId: string, url: string) => void;
+  onFileDownload: (url: string, mime: string) => void;
+  onQuickAction: (action: QuickAction) => void;
 }
 
 /**
@@ -23,37 +34,52 @@ interface WebPaneProps {
  * so their page state survives tab switches, like real browser tabs.
  * Start-page tabs render the internal StartPage instead of a WebView.
  */
-export function WebPane({
+export const WebPane = memo(function WebPane({
   colors,
   tab,
   active,
+  userAgent,
+  engineName,
+  searchTemplate,
+  incognito,
   setRef,
   onNavState,
   onProgress,
   onError,
   onRetry,
   onOpenFromStart,
+  onFileDownload,
+  onQuickAction,
 }: WebPaneProps) {
   const isStart = tab.url === null;
+  const canGoBack = !!tab.nav.canGoBack && tab.url !== null;
+  const canGoForward = !!tab.nav.canGoForward;
 
   return (
     <View style={[styles.pane, active ? styles.active : styles.hidden]}>
       {isStart ? (
-        <StartPage colors={colors} onOpen={(url) => onOpenFromStart(tab.id, url)} />
+        <StartPage
+          colors={colors}
+          onOpen={(url) => onOpenFromStart(tab.id, url)}
+          engineName={engineName}
+          searchTemplate={searchTemplate}
+          incognito={incognito}
+        />
       ) : (
         <>
           <WebView
             ref={(instance) => setRef(tab.id, instance)}
             source={{ uri: tab.url ?? 'about:blank' }}
-            key={`${tab.id}-${tab.desktop ? 'desktop' : 'mobile'}`}
+            key={`${tab.id}-${tab.desktop ? 'desktop' : 'mobile'}-${userAgent ?? 'default'}`}
             style={[styles.webview, { backgroundColor: colors.page }]}
-            userAgent={tab.desktop ? DESKTOP_USER_AGENT : undefined}
+            userAgent={userAgent}
             javaScriptEnabled
             domStorageEnabled
             allowsBackForwardNavigationGestures
             pullToRefreshEnabled
             allowsFullscreenVideo
             mediaPlaybackRequiresUserAction={false}
+            setSupportMultipleWindows={false}
             onNavigationStateChange={(nav) =>
               onNavState(tab.id, {
                 url: nav.url,
@@ -75,8 +101,28 @@ export function WebPane({
             onLoadProgress={(e) => onProgress(tab.id, e.nativeEvent.progress)}
             onError={(e) => onError(tab.id, e.nativeEvent.description || 'Failed to load')}
             onRenderProcessGone={() => onRetry(tab.id)}
-            onShouldStartLoadWithRequest={(req) => !/^intent:/i.test(req.url)}
+            onShouldStartLoadWithRequest={(req) => !/^(intent|market):/i.test(req.url)}
+            // Download manager: let the native download listener feed our queue
+            onFileDownload={(e) => onFileDownload(e.nativeEvent.downloadUrl, '')}
+            // Developer tools: capture console output + bridge replies
+            onConsoleMessage={(e: { nativeEvent: { level: string; message: string; lineNumber?: number } }) => {
+              const n = e.nativeEvent;
+              pushConsole(n.level, `[${n.lineNumber ?? '?'}] ${n.message}`);
+            }}
+            onMessage={(e) => {
+              if (!deliverBridgeMessage(e.nativeEvent.data)) {
+                pushConsole('log', e.nativeEvent.data.slice(0, 2000));
+              }
+            }}
           />
+          {active ? (
+            <GestureQuickActions
+              colors={colors}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              onAction={onQuickAction}
+            />
+          ) : null}
           {tab.error ? (
             <View style={[styles.errorOverlay, { backgroundColor: colors.page }]}>
               <Ionicons name="cloud-offline-outline" size={56} color={colors.secondaryText} />
@@ -104,7 +150,7 @@ export function WebPane({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   pane: {

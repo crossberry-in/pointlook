@@ -2,7 +2,7 @@
   "expo": {
     "name": "pointlook",
     "slug": "pointlook",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pointlook",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.crossberry.pointlook",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

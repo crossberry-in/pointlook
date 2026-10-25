@@ -15,10 +15,15 @@ interface BrowserMenuProps {
   colors: BrowserTheme;
   visible: boolean;
   desktop: boolean;
+  incognito: boolean;
   onNewTab: () => void;
   onShare: () => void;
   onReload: () => void;
   onToggleDesktop: () => void;
+  onToggleIncognito: () => void;
+  onDownloads: () => void;
+  onSettings: () => void;
+  onDevTools: () => void;
   onClearData: () => void;
   onCloseTab: () => void;
   onDismiss: () => void;
@@ -32,10 +37,15 @@ export function BrowserMenu({
   colors,
   visible,
   desktop,
+  incognito,
   onNewTab,
   onShare,
   onReload,
   onToggleDesktop,
+  onToggleIncognito,
+  onDownloads,
+  onSettings,
+  onDevTools,
   onClearData,
   onCloseTab,
   onDismiss,
@@ -70,6 +80,44 @@ export function BrowserMenu({
               onNewTab();
             }}
           />
+          <ToggleRow
+            colors={colors}
+            icon="eye-off-outline"
+            label="Incognito mode"
+            value={incognito}
+            onToggle={() => {
+              onDismiss();
+              onToggleIncognito();
+            }}
+          />
+          <MenuRow
+            colors={colors}
+            icon="download-outline"
+            label="Downloads"
+            onPress={() => {
+              onDismiss();
+              onDownloads();
+            }}
+          />
+          <MenuRow
+            colors={colors}
+            icon="settings-outline"
+            label="Settings"
+            onPress={() => {
+              onDismiss();
+              onSettings();
+            }}
+          />
+          <MenuRow
+            colors={colors}
+            icon="code-slash-outline"
+            label="Developer tools"
+            onPress={() => {
+              onDismiss();
+              onDevTools();
+            }}
+          />
+          <View style={[styles.divider, { borderTopColor: colors.border }]} />
           <MenuRow
             colors={colors}
             icon="refresh"
@@ -88,30 +136,26 @@ export function BrowserMenu({
               onShare();
             }}
           />
-          <View style={[styles.row, { borderTopColor: colors.border }]}>
-            <View style={styles.rowLeft}>
-              <Ionicons name="desktop-outline" size={21} color={colors.icon} />
-              <Text style={[styles.label, { color: colors.text }]}>Desktop site</Text>
-            </View>
-            <Switch
-              value={desktop}
-              onValueChange={() => {
-                onDismiss();
-                onToggleDesktop();
-              }}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
+          <ToggleRow
+            colors={colors}
+            icon="desktop-outline"
+            label="Desktop site"
+            value={desktop}
+            onToggle={() => {
+              onDismiss();
+              onToggleDesktop();
+            }}
+          />
           <MenuRow
             colors={colors}
             icon="trash-outline"
-            label="Clear browsing data"
+            label="Clear cookies & cache"
             onPress={() => {
               onDismiss();
               onClearData();
             }}
           />
+          <View style={[styles.divider, { borderTopColor: colors.border }]} />
           <MenuRow
             colors={colors}
             icon="close-outline"
@@ -156,6 +200,31 @@ function MenuRow({ colors, icon, label, danger, disabled, onPress }: MenuRowProp
   );
 }
 
+interface ToggleRowProps {
+  colors: BrowserTheme;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: boolean;
+  onToggle: () => void;
+}
+
+function ToggleRow({ colors, icon, label, value, onToggle }: ToggleRowProps) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <Ionicons name={icon} size={21} color={colors.icon} />
+        <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: colors.border, true: colors.accent }}
+        thumbColor="#FFFFFF"
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -165,7 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   panel: {
-    minWidth: 240,
+    minWidth: 250,
     borderRadius: 14,
     overflow: 'hidden',
     elevation: 16,
@@ -180,13 +249,15 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 18,
     height: 48,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   rowLeft: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+  },
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   label: {
     fontSize: 15.5,

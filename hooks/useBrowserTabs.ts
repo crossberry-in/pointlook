@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   createTab,
@@ -24,9 +24,11 @@ function initialState(): BrowserState {
  * Tab manager for the browser: open/close/select tabs, sync WebView nav state,
  * and keep a session history used for omnibox suggestions.
  */
-export function useBrowserTabs() {
+export function useBrowserTabs(incognito = false) {
   const [state, setState] = useState<BrowserState>(initialState);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const incognitoRef = useRef(incognito);
+  incognitoRef.current = incognito;
 
   const activeTab = useMemo(
     () => state.tabs.find((t) => t.id === state.activeId) ?? state.tabs[0] ?? null,
@@ -121,12 +123,18 @@ export function useBrowserTabs() {
   );
 
   const pushHistory = useCallback((url: string, title: string) => {
+    if (incognitoRef.current) return; // incognito: record nothing
     if (!/^https?:/i.test(url)) return;
     setHistory((h) => {
       const entry: HistoryEntry = { url, title: title || url, ts: Date.now() };
       const filtered = h.filter((e) => e.url !== url);
       return [entry, ...filtered].slice(0, HISTORY_LIMIT);
     });
+  }, []);
+
+  /** Drop the whole session history (used when entering incognito). */
+  const clearHistory = useCallback(() => {
+    setHistory([]);
   }, []);
 
   /** Record a load error; pass an empty description to clear it. */
@@ -147,6 +155,7 @@ export function useBrowserTabs() {
     setError,
     toggleDesktop,
     pushHistory,
+    clearHistory,
   };
 }
 
