@@ -100,18 +100,10 @@ jobs:
             adb shell input swipe 540 400 540 1100 400
             sleep 2
             adb exec-out screencap -p > touch-C-after-swipe-back.png
-            python3 - <<'PYEOF'
-            try:
-                a = open('touch-A-loaded.png','rb').read()
-                b = open('touch-B-after-swipe.png','rb').read()
-                c = open('touch-C-after-swipe-back.png','rb').read()
-                print("TOUCH-TEST: loaded=%dB after-swipe=%s after-back=%s" % (
-                    len(a),
-                    "SCROLLED(differs)" if a != b else "NO-CHANGE(touch broken?)",
-                    "SCROLLED-BACK(differs from B)" if b != c else "NO-CHANGE-BACK"))
-            except Exception as e:
-                print("TOUCH-TEST error:", e)
-            PYEOF
+            # NOTE: android-emulator-runner executes the script LINE BY LINE
+            # (each line becomes its own `sh -c`), so no multi-line heredocs
+            # and no cross-line variables — keep this comparison on one line.
+            cmp -s touch-A-loaded.png touch-B-after-swipe.png && echo "TOUCH-TEST: A-vs-B IDENTICAL (touch broken?)" || echo "TOUCH-TEST: A-vs-B DIFFER (page scrolled - touch works)"; cmp -s touch-B-after-swipe.png touch-C-after-swipe-back.png && echo "TOUCH-TEST: B-vs-C IDENTICAL (no scroll back)" || echo "TOUCH-TEST: B-vs-C DIFFER (scrolled back - touch works)"; ls -la touch-*.png
 
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
@@ -134,6 +126,7 @@ jobs:
           name: emulator-evidence
           path: |
             shot-*.png
+            touch-*.png
             logcat-*.txt
           if-no-files-found: warn
           retention-days: 14
