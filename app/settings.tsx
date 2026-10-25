@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Linking, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -218,7 +219,7 @@ export default function SettingsScreen() {
                 {ABOUT.app} for Android
               </Text>
               <Text style={[styles.rowSub, { color: colors.secondaryText }]}>
-                Version 1.2.0 (versionCode 4)
+                Version 1.2.1 (versionCode 5)
               </Text>
             </View>
           </View>

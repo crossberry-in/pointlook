@@ -2,11 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { memo } from 'react';
+import { GestureDetector } from 'react-native-gesture-handler';
 
 import { BrowserTheme } from '@/constants/BrowserColors';
 import { Tab } from '@/lib/browser';
 import { StartPage } from '@/components/browser/StartPage';
-import { GestureQuickActions, type QuickAction } from './GestureQuickActions';
+import {
+  QuickActionsOverlay,
+  useQuickActionsGesture,
+  type QuickAction,
+} from './GestureQuickActions';
 import { deliverBridgeMessage, pushConsole } from '@/lib/pageBridge';
 
 interface WebPaneProps {
@@ -55,6 +60,10 @@ export const WebPane = memo(function WebPane({
   const canGoBack = !!tab.nav.canGoBack && tab.url !== null;
   const canGoForward = !!tab.nav.canGoForward;
 
+  // Quick actions gesture WRAPS the WebView (never an overlay on top of it,
+  // which would swallow every touch and make the page untouchable).
+  const qa = useQuickActionsGesture({ canGoBack, canGoForward, onAction: onQuickAction });
+
   return (
     <View style={[styles.pane, active ? styles.active : styles.hidden]}>
       {isStart ? (
@@ -67,6 +76,7 @@ export const WebPane = memo(function WebPane({
         />
       ) : (
         <>
+          <GestureDetector gesture={qa.gesture}>
           <WebView
             ref={(instance) => setRef(tab.id, instance)}
             source={{ uri: tab.url ?? 'about:blank' }}
@@ -115,12 +125,16 @@ export const WebPane = memo(function WebPane({
               }
             }}
           />
+          </GestureDetector>
           {active ? (
-            <GestureQuickActions
+            <QuickActionsOverlay
               colors={colors}
+              armed={qa.armed}
+              selection={qa.selection}
+              anim={qa.anim}
+              pulse={qa.pulse}
               canGoBack={canGoBack}
               canGoForward={canGoForward}
-              onAction={onQuickAction}
             />
           ) : null}
           {tab.error ? (
