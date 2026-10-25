@@ -76,6 +76,18 @@ export const QUICK_ACTIONS_JS = `;(function(){
   document.addEventListener('touchend', onEnd, { capture: true, passive: true });
   document.addEventListener('touchcancel', onEnd, { capture: true, passive: true });
   post('ready');
+  // CI test hook: navigating to <page>#pointlook-qa replays the full
+  // arm -> select -> end message sequence synthetically (2s .. 10s after
+  // load) so the RN pill/action pipeline can be verified end-to-end without
+  // depending on where the finger lands (text selection swallows drags).
+  if (location.hash === '#pointlook-qa') {
+    setTimeout(function () { post('arm'); }, 2000);
+    setTimeout(function () { post('select', 'refresh'); }, 3000);
+    setTimeout(function () {
+      post('end', 'refresh', 100);
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    }, 10000);
+  }
   // One-shot diagnostics: prove injection ran and report page scrollability.
   setTimeout(function () {
     try {

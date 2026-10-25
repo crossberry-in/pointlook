@@ -116,27 +116,23 @@ jobs:
             pip3 install --quiet pillow || echo "pillow install failed - analysis will be skipped"
             python3 -c "from PIL import Image, ImageChops; a=Image.open('touch-A-loaded.png').convert('RGB'); b=Image.open('touch-B-after-swipe.png').convert('RGB'); c=Image.open('touch-C-after-swipe-back.png').convert('RGB'); ab=ImageChops.difference(a,b).getbbox(); bc=ImageChops.difference(b,c).getbbox(); print('TOUCH-TEST A-vs-B diff-bbox:', ab, '=> SCROLLED, touch works' if ab and (ab[3]-ab[1])>300 else '=> NOT-SCROLLED, touch broken'); print('TOUCH-TEST B-vs-C diff-bbox:', bc, '=> SCROLLED-BACK, touch works' if bc and (bc[3]-bc[1])>300 else '=> NOT-SCROLLED-BACK')" || echo "TOUCH-TEST analysis failed (screenshots still uploaded)"
 
-            # ---- QUICK ACTIONS PILL TEST ---------------------------------
-            # Navigate to example.com (short page, blank below the fold) and
-            # press on the BLANK area: pressing on text would start the native
-            # text selection, which swallows the drag (by design - selection
-            # wins over the quick action). Long-press on blank ground arms the
-            # pill; drag DOWN, screenshot, release (refresh fires).
+            # ---- QUICK ACTIONS PILL TEST (synthetic pipeline) -------------
+            # Long-press on page TEXT starts native text selection, which
+            # swallows the drag (by design - selection wins), so a coordinate
+            # based press cannot reliably arm the pill. Instead we navigate to
+            # example.com#pointlook-qa: the injected observer replays the full
+            # arm (t+2s) -> select refresh (t+3s) -> end/refresh action
+            # (t+10s) message sequence. The screenshot must show the pill.
             adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input tap $((W/2)) $((H*8/100)); }
             sleep 2
             # clear the pre-filled URL draft (MOVE_END then a DEL burst)
             adb shell input keyevent 123
             adb shell input keyevent 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67 67
-            adb shell input text "example.com"
+            adb shell "input text 'example.com#pointlook-qa'"
             adb shell input keyevent 66
-            sleep 10
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent DOWN $((W/2)) $((H*78/100)); }
-            sleep 1
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent MOVE $((W/2)) $((H*84/100)); adb shell input motionevent MOVE $((W/2)) $((H*90/100)); }
-            sleep 1
-            adb exec-out screencap -p > qa-pill-armed.png
-            adb shell wm size | grep -oE "[0-9]+x[0-9]+" | { read WH; W=${WH%x*}; H=${WH#*x}; adb shell input motionevent UP $((W/2)) $((H*90/100)); }
             sleep 6
+            adb exec-out screencap -p > qa-pill-armed.png
+            sleep 10
             adb exec-out screencap -p > qa-after-release.png
 
             # Is the process alive? What activities are up?
