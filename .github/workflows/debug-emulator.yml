@@ -77,6 +77,42 @@ jobs:
             sleep 5
             adb exec-out screencap -p > shot-devtools.png
 
+            # ---- WebView TOUCH TEST --------------------------------------
+            # Back to the browser start page, type a URL in the omnibox,
+            # wait for the page, then swipe up: if the WebView receives
+            # touches, the page scrolls and the two screenshots differ.
+            adb shell am force-stop com.crossberry.pointlook
+            sleep 2
+            adb shell monkey -p com.crossberry.pointlook -c android.intent.category.LAUNCHER 1
+            sleep 8
+            # tap the omnibox (top bar, centered)
+            adb shell input tap 540 130
+            sleep 2
+            adb shell input text "en.wikipedia.org/wiki/Android"
+            adb shell input keyevent 66
+            sleep 14
+            adb exec-out screencap -p > touch-A-loaded.png
+            # swipe up (drag page content upward = scroll down)
+            adb shell input swipe 540 1100 540 300 400
+            sleep 2
+            adb exec-out screencap -p > touch-B-after-swipe.png
+            # second swipe back down
+            adb shell input swipe 540 400 540 1100 400
+            sleep 2
+            adb exec-out screencap -p > touch-C-after-swipe-back.png
+            python3 - <<'PYEOF'
+            try:
+                a = open('touch-A-loaded.png','rb').read()
+                b = open('touch-B-after-swipe.png','rb').read()
+                c = open('touch-C-after-swipe-back.png','rb').read()
+                print("TOUCH-TEST: loaded=%dB after-swipe=%s after-back=%s" % (
+                    len(a),
+                    "SCROLLED(differs)" if a != b else "NO-CHANGE(touch broken?)",
+                    "SCROLLED-BACK(differs from B)" if b != c else "NO-CHANGE-BACK"))
+            except Exception as e:
+                print("TOUCH-TEST error:", e)
+            PYEOF
+
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
             adb shell dumpsys activity activities | grep -i -A2 "topResumedActivity\|mResumedActivity" || true
