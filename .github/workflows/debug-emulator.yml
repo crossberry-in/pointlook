@@ -66,6 +66,17 @@ jobs:
             sleep 15
             adb exec-out screencap -p > shot-33s.png
 
+            # Deep-link into the feature screens (expo-router scheme routing)
+            adb shell am start -a android.intent.action.VIEW -d "pointlook://settings" com.crossberry.pointlook
+            sleep 6
+            adb exec-out screencap -p > shot-settings.png
+            adb shell am start -a android.intent.action.VIEW -d "pointlook://downloads" com.crossberry.pointlook
+            sleep 5
+            adb exec-out screencap -p > shot-downloads.png
+            adb shell am start -a android.intent.action.VIEW -d "pointlook://devtools" com.crossberry.pointlook
+            sleep 5
+            adb exec-out screencap -p > shot-devtools.png
+
             # Is the process alive? What activities are up?
             adb shell "pidof com.crossberry.pointlook" || echo "PROCESS DEAD"
             adb shell dumpsys activity activities | grep -i -A2 "topResumedActivity\|mResumedActivity" || true
